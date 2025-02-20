@@ -38,9 +38,14 @@ Before you begin, ensure you have the following installed:
    npm install
    ```
 
-3. Create a `.env` file in the root directory and add your environment variables:
+3. Create a `.env` file in the root directory by copying `.env.example`:
+   ```bash
+   cp .env.example .env
+   ```
+   Then edit `.env` and add your actual environment variables:
    ```env
    VITE_OPENAI_API_KEY=your_api_key_here
+   # Add other required environment variables
    ```
 
 4. Start the development server:
