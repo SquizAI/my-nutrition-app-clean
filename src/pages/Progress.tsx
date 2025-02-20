@@ -1,4 +1,5 @@
 import React from 'react';
+import styled from 'styled-components';
 import WeightChart from '../components/progress/WeightChart';
 import BodyMeasurements from '../components/progress/BodyMeasurements';
 import NutrientIntakeChart from '../components/progress/NutrientIntakeChart';
@@ -6,28 +7,54 @@ import WorkoutProgress from '../components/progress/WorkoutProgress';
 import GoalTracker from '../components/progress/GoalTracker';
 import AIRecommendation from '../components/shared/AIRecommendation';
 
+const Container = styled.div`
+  min-height: 100vh;
+  background: ${({ theme }) => theme.colors.background.gradient};
+  padding: ${({ theme }) => theme.spacing.xl};
+  color: ${({ theme }) => theme.colors.text.primary};
+`;
+
+const Title = styled.h2`
+  font-size: ${({ theme }) => theme.typography.fontSizes.xxl};
+  background: ${({ theme }) => theme.gradients.text.primary};
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+`;
+
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: ${({ theme }) => theme.spacing.xl};
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+`;
+
 const Progress: React.FC = () => {
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Progress Tracking</h2>
+    <Container>
+      <Title>Progress Tracking</Title>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Grid>
         <WeightChart />
         <BodyMeasurements />
-      </div>
+      </Grid>
       
       <NutrientIntakeChart />
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Grid>
         <WorkoutProgress />
         <GoalTracker />
-      </div>
+      </Grid>
       
       <AIRecommendation 
         title="Progress Insight"
         recommendation="Your consistent workout routine is showing great results! Consider increasing your protein intake slightly to support muscle growth."
       />
-    </div>
+    </Container>
   );
 };
 

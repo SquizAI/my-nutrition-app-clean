@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Loader, Heart, Clock, BarChart } from 'lucide-react';
+import styled from 'styled-components';
+import { motion } from 'framer-motion';
+import { Search, Filter, Loader, Heart, Clock, BarChart, Flame, Tag } from 'lucide-react';
 import { getNutritionAdvice } from '../../services/aiService';
 
 interface Recipe {
@@ -24,24 +26,160 @@ interface AdvancedFilters {
   cuisineType: string;
 }
 
+const Container = styled.div`
+  background: ${({ theme }) => theme.colors.background.card};
+  border-radius: ${({ theme }) => theme.borderRadius.large};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  padding: ${({ theme }) => theme.spacing.xl};
+`;
+
+const SearchHeader = styled.div`
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const Title = styled.h3`
+  font-size: ${({ theme }) => theme.typography.fontSizes.lg};
+  color: ${({ theme }) => theme.colors.text.primary};
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
+`;
+
+const SearchBar = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.sm};
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+`;
+
+const SearchInput = styled.input`
+  flex: 1;
+  padding: ${({ theme }) => theme.spacing.md};
+  background: ${({ theme }) => theme.colors.background.main};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-size: ${({ theme }) => theme.typography.fontSizes.md};
+
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.text.secondary};
+  }
+`;
+
+const IconButton = styled(motion.button)`
+  padding: ${({ theme }) => theme.spacing.md};
+  background: ${({ theme }) => theme.colors.button.background};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  color: ${({ theme }) => theme.colors.text.primary};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.button.hover};
+    border-color: ${({ theme }) => theme.colors.border.hover};
+  }
+`;
+
+const FilterTags = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
+
+interface FilterTagProps {
+  isActive: boolean;
+}
+
+const FilterTag = styled(motion.button)<FilterTagProps>`
+  padding: ${({ theme }) => `${theme.spacing.xs} ${theme.spacing.sm}`};
+  background: ${({ theme, isActive }) => 
+    isActive ? theme.colors.button.hover : theme.colors.button.background};
+  border: 1px solid ${({ theme, isActive }) => 
+    isActive ? theme.colors.primary : theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.borderRadius.small};
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-size: ${({ theme }) => theme.typography.fontSizes.sm};
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.xs};
+  cursor: pointer;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.button.hover};
+    border-color: ${({ theme }) => theme.colors.border.hover};
+  }
+`;
+
+const ResultsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: ${({ theme }) => theme.spacing.lg};
+  margin-top: ${({ theme }) => theme.spacing.xl};
+`;
+
+const RecipeCard = styled(motion.div)`
+  background: ${({ theme }) => theme.colors.background.main};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  overflow: hidden;
+  cursor: pointer;
+`;
+
+const RecipeImage = styled.div`
+  aspect-ratio: 16/9;
+  background: ${({ theme }) => theme.colors.background.card};
+  position: relative;
+`;
+
+const RecipeInfo = styled.div`
+  padding: ${({ theme }) => theme.spacing.md};
+`;
+
+const RecipeName = styled.h4`
+  font-size: ${({ theme }) => theme.typography.fontSizes.md};
+  color: ${({ theme }) => theme.colors.text.primary};
+  margin-bottom: ${({ theme }) => theme.spacing.xs};
+`;
+
+const RecipeMeta = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.md};
+  color: ${({ theme }) => theme.colors.text.secondary};
+  font-size: ${({ theme }) => theme.typography.fontSizes.sm};
+`;
+
+const MetaItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.xs};
+`;
+
 const RecipeSearch: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({
-    vegetarian: false,
-    vegan: false,
-    glutenFree: false,
-    dairyFree: false,
-  });
-  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
-    cookingTime: 60,
-    difficulty: '',
-    cuisineType: '',
-  });
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [favoriteRecipes, setFavoriteRecipes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
+    cookingTime: 60,
+    difficulty: '',
+    cuisineType: '',
+  });
+
+  const filters = [
+    { icon: Clock, label: 'Quick (< 30 min)' },
+    { icon: Flame, label: 'Low Calorie' },
+    { icon: Tag, label: 'Vegetarian' },
+    { icon: Tag, label: 'High Protein' },
+  ];
 
   useEffect(() => {
     const savedFavorites = localStorage.getItem('favoriteRecipes');
@@ -55,10 +193,7 @@ const RecipeSearch: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const filtersString = Object.entries(filters)
-        .filter(([, value]) => value)
-        .map(([key]) => key)
-        .join(', ');
+      const filtersString = activeFilters.join(', ');
       
       const schema = {
         type: "object",
@@ -121,136 +256,101 @@ const RecipeSearch: React.FC = () => {
     });
   };
 
+  const toggleFilter = (filter: string) => {
+    setActiveFilters(prev => 
+      prev.includes(filter)
+        ? prev.filter(f => f !== filter)
+        : [...prev, filter]
+    );
+  };
+
   return (
-    <div className="bg-white shadow sm:rounded-lg p-6">
-      <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">AI-Powered Recipe Search</h3>
-      <form onSubmit={handleSearch}>
-        <div className="flex mb-4">
-          <input
+    <Container>
+      <SearchHeader>
+        <Title>Recipe Search</Title>
+        <SearchBar>
+          <SearchInput
             type="text"
+            placeholder="Search recipes..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search recipes..."
-            className="flex-grow px-4 py-2 border rounded-l-md focus:ring-indigo-500 focus:border-indigo-500"
           />
-          <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-r-md hover:bg-indigo-700">
+          <IconButton
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleSearch}
+          >
             <Search size={20} />
-          </button>
-        </div>
-        <div className="flex items-center space-x-4 mb-4">
-          <Filter size={20} className="text-gray-400" />
-          <span className="text-sm font-medium text-gray-700">Dietary Filters:</span>
-          {Object.entries(filters).map(([key, value]) => (
-            <label key={key} className="inline-flex items-center">
-              <input
-                type="checkbox"
-                checked={value}
-                onChange={() => setFilters({ ...filters, [key]: !value })}
-                className="form-checkbox h-4 w-4 text-indigo-600 transition duration-150 ease-in-out"
-              />
-              <span className="ml-2 text-sm text-gray-700">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-            </label>
+          </IconButton>
+          <IconButton
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Filter size={20} />
+          </IconButton>
+        </SearchBar>
+        <FilterTags>
+          {filters.map(({ icon: Icon, label }) => (
+            <FilterTag
+              key={label}
+              isActive={activeFilters.includes(label)}
+              onClick={() => toggleFilter(label)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Icon size={14} />
+              {label}
+            </FilterTag>
           ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-          className="mb-4 text-indigo-600 hover:text-indigo-800"
-        >
-          {showAdvancedFilters ? 'Hide Advanced Filters' : 'Show Advanced Filters'}
-        </button>
-        {showAdvancedFilters && (
-          <div className="mb-4 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Cooking Time (minutes)</label>
-              <input
-                type="range"
-                min="15"
-                max="120"
-                value={advancedFilters.cookingTime}
-                onChange={(e) => setAdvancedFilters({ ...advancedFilters, cookingTime: parseInt(e.target.value) })}
-                className="w-full"
-              />
-              <span>{advancedFilters.cookingTime} minutes</span>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Difficulty</label>
-              <select
-                value={advancedFilters.difficulty}
-                onChange={(e) => setAdvancedFilters({ ...advancedFilters, difficulty: e.target.value })}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-              >
-                <option value="">Any</option>
-                <option value="Easy">Easy</option>
-                <option value="Medium">Medium</option>
-                <option value="Hard">Hard</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Cuisine Type</label>
-              <input
-                type="text"
-                value={advancedFilters.cuisineType}
-                onChange={(e) => setAdvancedFilters({ ...advancedFilters, cuisineType: e.target.value })}
-                placeholder="e.g., Italian, Chinese, Mexican"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
+        </FilterTags>
+      </SearchHeader>
+
+      <ResultsGrid>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-40">
+            <Loader className="animate-spin text-blue-500" size={24} />
           </div>
+        ) : error ? (
+          <div className="text-red-500 p-4">{error}</div>
+        ) : (
+          recipes.map((recipe) => (
+            <RecipeCard
+              key={recipe.id}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <RecipeImage />
+              <RecipeInfo>
+                <div className="flex justify-between items-start">
+                  <RecipeName>{recipe.name}</RecipeName>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(recipe.id);
+                    }}
+                    className={`text-${favoriteRecipes.includes(recipe.id) ? 'red' : 'gray'}-500 hover:text-red-700`}
+                  >
+                    <Heart size={20} />
+                  </button>
+                </div>
+                <RecipeMeta>
+                  <MetaItem>
+                    <Clock size={14} />
+                    {recipe.cookingTime} min
+                  </MetaItem>
+                  <MetaItem>
+                    {recipe.difficulty}
+                  </MetaItem>
+                  <MetaItem>
+                    {recipe.cuisineType}
+                  </MetaItem>
+                </RecipeMeta>
+              </RecipeInfo>
+            </RecipeCard>
+          ))
         )}
-      </form>
-      {isLoading ? (
-        <div className="flex justify-center items-center h-40">
-          <Loader className="animate-spin text-blue-500" size={24} />
-        </div>
-      ) : error ? (
-        <div className="text-red-500 p-4">{error}</div>
-      ) : (
-        <div className="mt-6 space-y-6">
-          {recipes.map((recipe) => (
-            <div key={recipe.id} className="bg-gray-50 p-4 rounded-lg">
-              <div className="flex justify-between items-start">
-                <h4 className="text-lg font-medium text-gray-900 mb-2">{recipe.name}</h4>
-                <button
-                  onClick={() => toggleFavorite(recipe.id)}
-                  className={`text-${favoriteRecipes.includes(recipe.id) ? 'red' : 'gray'}-500 hover:text-red-700`}
-                >
-                  <Heart size={20} />
-                </button>
-              </div>
-              <div className="flex items-center space-x-4 mb-2 text-sm text-gray-500">
-                <span className="flex items-center">
-                  <Clock size={16} className="mr-1" />
-                  {recipe.cookingTime} min
-                </span>
-                <span>{recipe.difficulty}</span>
-                <span>{recipe.cuisineType}</span>
-              </div>
-              <h5 className="text-md font-medium text-gray-700 mb-1">Ingredients:</h5>
-              <ul className="list-disc list-inside mb-2">
-                {recipe.ingredients.map((ingredient, idx) => (
-                  <li key={idx} className="text-sm text-gray-600">{ingredient}</li>
-                ))}
-              </ul>
-              <h5 className="text-md font-medium text-gray-700 mb-1">Instructions:</h5>
-              <p className="text-sm text-gray-600 mb-2">{recipe.instructions}</p>
-              <div className="mt-2">
-                <h5 className="text-md font-medium text-gray-700 mb-1 flex items-center">
-                  <BarChart size={16} className="mr-1" />
-                  Nutritional Information:
-                </h5>
-                <p className="text-sm text-gray-600">
-                  Calories: {recipe.nutritionalInfo.calories} |
-                  Protein: {recipe.nutritionalInfo.protein}g |
-                  Carbs: {recipe.nutritionalInfo.carbs}g |
-                  Fat: {recipe.nutritionalInfo.fat}g
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+      </ResultsGrid>
+    </Container>
   );
 };
 

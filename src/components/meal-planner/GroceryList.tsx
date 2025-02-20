@@ -1,14 +1,127 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Loader, ChevronDown, ChevronUp, Trash2, Camera, DollarSign, Calendar } from 'lucide-react';
 import { getNutritionAdvice } from '../../services/aiService';
+import styled from 'styled-components';
+import { motion } from 'framer-motion';
+import { ShoppingBag, Check, X, Edit2 } from 'lucide-react';
+import { useMealPlan } from '../../services/mealPlanContext';
+import { useToast } from '../shared/Toast';
+
+const Container = styled.div`
+  background: ${({ theme }) => theme.colors.background.card};
+  border-radius: ${({ theme }) => theme.borderRadius.large};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  padding: ${({ theme }) => theme.spacing.xl};
+`;
+
+const Title = styled.h3`
+  font-size: ${({ theme }) => theme.typography.fontSizes.lg};
+  color: ${({ theme }) => theme.colors.text.primary};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
+
+const AddItemForm = styled.form`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.sm};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const Input = styled.input`
+  flex: 1;
+  padding: ${({ theme }) => theme.spacing.md};
+  background: ${({ theme }) => theme.colors.background.main};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-size: ${({ theme }) => theme.typography.fontSizes.md};
+
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.text.secondary};
+  }
+`;
+
+const IconButton = styled(motion.button)`
+  padding: ${({ theme }) => theme.spacing.md};
+  background: ${({ theme }) => theme.colors.button.background};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  color: ${({ theme }) => theme.colors.text.primary};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.button.hover};
+    border-color: ${({ theme }) => theme.colors.border.hover};
+  }
+`;
+
+const ItemsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
+
+interface ItemProps {
+  isChecked?: boolean;
+}
+
+const Item = styled(motion.div)<ItemProps>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.md};
+  background: ${({ theme }) => theme.colors.background.main};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  color: ${({ theme, isChecked }) => 
+    isChecked ? theme.colors.text.secondary : theme.colors.text.primary};
+  text-decoration: ${({ isChecked }) => isChecked ? 'line-through' : 'none'};
+`;
+
+const Checkbox = styled.button`
+  width: 20px;
+  height: 20px;
+  border: 2px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.borderRadius.small};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  color: ${({ theme }) => theme.colors.primary};
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+`;
+
+const ItemText = styled.span`
+  flex: 1;
+`;
+
+const ItemActions = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
 
 interface GroceryItem {
   id: string;
   name: string;
-  category: string;
   isChecked: boolean;
-  quantity: number;
-  unit: string;
+  quantity?: number;
+  unit?: string;
+  category?: string;
 }
 
 interface GroceryCategory {
@@ -22,82 +135,128 @@ interface OnlineStore {
   items: { [key: string]: number }; // item name to price mapping
 }
 
+const EmptyState = styled.div`
+  text-align: center;
+  padding: ${({ theme }) => theme.spacing.xl};
+  color: ${({ theme }) => theme.colors.text.secondary};
+`;
+
+const Button = styled.button`
+  background: ${({ theme }) => theme.colors.button.background};
+  color: ${({ theme }) => theme.colors.text.primary};
+  padding: ${({ theme }) => `${theme.spacing.sm} ${theme.spacing.md}`};
+  border-radius: ${({ theme }) => theme.borderRadius.medium};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.colors.button.hover};
+    border-color: ${({ theme }) => theme.colors.border.hover};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+interface MealType {
+  name: string;
+  nutritionalInfo: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+  recipe?: string;
+}
+
+interface DayMeals {
+  [meal: string]: MealType;
+}
+
+interface MealPlanType {
+  [day: string]: DayMeals;
+}
+
 const GroceryList: React.FC = () => {
+  const { mealPlan } = useMealPlan();
+  const { addToast } = useToast();
   const [categories, setCategories] = useState<GroceryCategory[]>([]);
-  const [newItem, setNewItem] = useState('');
+  const [newItem, setNewItem] = useState<string>('');
   const [newItemCategory, setNewItemCategory] = useState('');
   const [newItemQuantity, setNewItemQuantity] = useState(1);
   const [newItemUnit, setNewItemUnit] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [onlineStores, setOnlineStores] = useState<OnlineStore[]>([]);
   const [selectedStore, setSelectedStore] = useState<string | null>(null);
-  const [mealPlan, setMealPlan] = useState<string[]>([]);
+  const [items, setItems] = useState<GroceryItem[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState<string>('');
 
   useEffect(() => {
     generateGroceryList();
     loadOnlineStores();
-    loadMealPlan();
   }, []);
 
   const generateGroceryList = async () => {
-    setIsLoading(true);
-    setError(null);
+    if (!mealPlan || Object.keys(mealPlan).length === 0) {
+      addToast({
+        type: 'warning',
+        message: 'Please generate a meal plan first',
+      });
+      return;
+    }
+
+    setIsGenerating(true);
     try {
-      const schema = {
-        type: "object",
-        properties: {
-          categories: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                name: { type: "string" },
-                items: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      name: { type: "string" },
-                      quantity: { type: "number" },
-                      unit: { type: "string" }
-                    },
-                    required: ["name", "quantity", "unit"]
-                  }
-                }
-              },
-              required: ["name", "items"]
-            }
-          }
-        },
-        required: ["categories"]
-      };
-  
-      const response = await getNutritionAdvice(
-        "Generate a comprehensive grocery list for a week, based on a healthy, balanced diet. Include a variety of fruits, vegetables, proteins, grains, and other essentials. Categorize the items and include suggested quantities and units.",
-        schema
+      const typedMealPlan = mealPlan as MealPlanType;
+      const meals = Object.values(typedMealPlan).flatMap(dayMeals => 
+        Object.values(dayMeals).map(meal => meal.name)
       );
-  
-      const categorizedList = response.categories.map((category: any) => ({
-        name: category.name,
-        items: category.items.map((item: any) => ({
-          id: `${category.name}-${item.name}-${Math.random().toString(36).substr(2, 9)}`,
-          name: item.name,
-          category: category.name,
-          isChecked: false,
-          quantity: item.quantity,
-          unit: item.unit
-        })),
-        isExpanded: true
+
+      const response = await getNutritionAdvice(
+        `Generate a grocery list for the following meals: ${meals.join(", ")}. Include quantities and units for each ingredient.`,
+        {
+          type: "object",
+          properties: {
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  quantity: { type: "number" },
+                  unit: { type: "string" }
+                },
+                required: ["name"]
+              }
+            }
+          },
+          required: ["items"]
+        }
+      );
+
+      const newItems = response.items.map((item: any) => ({
+        id: Date.now().toString() + Math.random(),
+        name: `${item.quantity ? item.quantity : ''} ${item.unit ? item.unit + ' ' : ''}${item.name}`.trim(),
+        isChecked: false
       }));
-  
-      setCategories(categorizedList);
+
+      setItems(newItems);
     } catch (error) {
       console.error('Error generating grocery list:', error);
-      setError('Failed to generate grocery list. Please try again.');
+      addToast({
+        type: 'error',
+        message: 'Failed to generate grocery list. Please try again.',
+      });
     } finally {
-      setIsLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -183,216 +342,151 @@ const GroceryList: React.FC = () => {
     return null;
   };
 
-  const loadMealPlan = () => {
-    // In a real app, this would fetch the meal plan from another component or API
-    setMealPlan([
-      "Spaghetti Bolognese",
-      "Grilled Chicken Salad",
-      "Vegetable Stir Fry",
-      "Salmon with Roasted Vegetables",
-      "Lentil Soup"
+  const handleAddItem = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!newItem.trim()) return;
+
+    setItems(prev => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        name: newItem.trim(),
+        isChecked: false,
+      }
     ]);
+    setNewItem('');
   };
 
-  const generateListFromMealPlan = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const schema = {
-        type: "object",
-        properties: {
-          ingredients: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                name: { type: "string" },
-                quantity: { type: "number" },
-                unit: { type: "string" },
-                category: { type: "string" }
-              },
-              required: ["name", "quantity", "unit", "category"]
-            }
-          }
-        },
-        required: ["ingredients"]
-      };
+  const toggleItem = (id: string) => {
+    setItems(prev => prev.map(item => 
+      item.id === id ? { ...item, isChecked: !item.isChecked } : item
+    ));
+  };
 
-      const response = await getNutritionAdvice(
-        `Generate a grocery list for the following meals: ${mealPlan.join(", ")}. Include quantities, units, and categories for each ingredient.`,
-        schema
-      );
+  const startEdit = (item: GroceryItem) => {
+    setEditingId(item.id);
+    setEditText(item.name);
+  };
 
-      const newItems = response.ingredients.map((item: any) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        name: item.name,
-        category: item.category,
-        isChecked: false,
-        quantity: item.quantity,
-        unit: item.unit
-      }));
+  const saveEdit = () => {
+    if (!editText.trim() || !editingId) return;
 
-      setCategories(prevCategories => {
-        const mergedCategories = [...prevCategories];
-        newItems.forEach(newItem => {
-          const categoryIndex = mergedCategories.findIndex(c => c.name.toLowerCase() === newItem.category.toLowerCase());
-          if (categoryIndex !== -1) {
-            mergedCategories[categoryIndex].items.push(newItem);
-          } else {
-            mergedCategories.push({
-              name: newItem.category,
-              items: [newItem],
-              isExpanded: true
-            });
-          }
-        });
-        return mergedCategories;
-      });
-    } catch (error) {
-      console.error('Error generating grocery list from meal plan:', error);
-      setError('Failed to generate grocery list from meal plan. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    setItems(prev => prev.map(item => 
+      item.id === editingId ? { ...item, name: editText.trim() } : item
+    ));
+    setEditingId(null);
+    setEditText('');
+  };
+
+  const deleteItem = (id: string) => {
+    setItems(prev => prev.filter(item => item.id !== id));
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg">
-      <h3 className="text-lg font-semibold mb-4 flex items-center">
-        <ShoppingCart className="mr-2" /> AI-Generated Comprehensive Grocery List
-      </h3>
-      {isLoading ? (
-        <div className="flex justify-center items-center h-40">
-          <Loader className="animate-spin text-blue-500" size={24} />
-        </div>
-      ) : error ? (
-        <div className="text-red-500 p-4">{error}</div>
+    <Container>
+      <Title>
+        <ShoppingBag size={24} />
+        Grocery List
+      </Title>
+
+      {!mealPlan || Object.keys(mealPlan).length === 0 ? (
+        <EmptyState>
+          Please generate a meal plan first to create your grocery list
+        </EmptyState>
       ) : (
         <>
-          <div className="mb-6">
-            {categories.map((category, catIndex) => (
-              <div key={category.name} className="mb-4">
-                <div 
-                  className="flex items-center justify-between bg-gray-100 p-2 rounded cursor-pointer"
-                  onClick={() => toggleCategoryExpand(catIndex)}
-                >
-                  <h4 className="font-medium text-gray-800">{category.name}</h4>
-                  {category.isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                </div>
-                {category.isExpanded && (
-                  <ul className="mt-2 space-y-2">
-                    {category.items.map((item, itemIndex) => (
-                      <li key={item.id} className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <input 
-                            type="checkbox" 
-                            checked={item.isChecked}
-                            onChange={() => toggleItemCheck(catIndex, itemIndex)}
-                            className="mr-2"
-                          />
-                          <span className={item.isChecked ? 'line-through text-gray-500' : ''}>
-                            {item.name} - {item.quantity} {item.unit}
-                          </span>
-                        </div>
-                        <div className="flex items-center">
-                          {comparePrice(item) && (
-                            <span className="mr-2 text-green-600">${comparePrice(item)?.toFixed(2)}</span>
-                          )}
-                          <button
-                            onClick={() => removeItem(catIndex, itemIndex)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-col sm:flex-row sm:space-x-2 mb-4">
-            <input
+          <Button
+            onClick={generateGroceryList}
+            disabled={isGenerating}
+          >
+            {isGenerating ? 'Generating...' : 'Generate Grocery List'}
+          </Button>
+
+          <AddItemForm onSubmit={handleAddItem}>
+            <Input
               type="text"
+              placeholder="Add new item..."
               value={newItem}
               onChange={(e) => setNewItem(e.target.value)}
-              className="flex-grow mb-2 sm:mb-0 px-3 py-2 border rounded"
-              placeholder="Add new item"
             />
-            <input
-              type="text"
-              value={newItemCategory}
-              onChange={(e) => setNewItemCategory(e.target.value)}
-              className="flex-grow mb-2 sm:mb-0 px-3 py-2 border rounded"
-              placeholder="Category"
-            />
-            <input
-              type="number"
-              value={newItemQuantity}
-              onChange={(e) => setNewItemQuantity(parseInt(e.target.value))}
-              className="w-20 mb-2 sm:mb-0 px-3 py-2 border rounded"
-              placeholder="Qty"
-            />
-            <input
-              type="text"
-              value={newItemUnit}
-              onChange={(e) => setNewItemUnit(e.target.value)}
-              className="w-20 mb-2 sm:mb-0 px-3 py-2 border rounded"
-              placeholder="Unit"
-            />
-            <button
-              onClick={addItem}
-              className="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 flex items-center justify-center"
+            <IconButton
+              type="submit"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              disabled={!newItem.trim()}
             >
-              <Plus size={20} className="mr-1" /> Add
-            </button>
-          </div>
-          <div className="flex space-x-2 mb-4">
-            <button
-              onClick={() => setShowBarcodeScanner(!showBarcodeScanner)}
-              className="bg-purple-500 text-white px-3 py-2 rounded hover:bg-purple-600 flex items-center"
-            >
-              <Camera size={20} className="mr-1" /> 
-              {showBarcodeScanner ? 'Hide Scanner' : 'Scan Barcode'}
-            </button>
-            <select
-              value={selectedStore || ''}
-              onChange={(e) => setSelectedStore(e.target.value)}
-              className="border rounded px-3 py-2"
-            >
-              <option value="">Compare Prices</option>
-              {onlineStores.map(store => (
-                <option key={store.name} value={store.name}>{store.name}</option>
-              ))}
-            </select>
-            <button
-              onClick={generateListFromMealPlan}
-              className="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 flex items-center"
-            >
-              <Calendar size={20} className="mr-1" /> Generate from Meal Plan
-            </button>
-          </div>
-          {showBarcodeScanner && (
-            <div className="mb-4 p-4 border rounded">
-              <p>Barcode scanner simulation. In a real app, this would activate the device's camera.</p>
-              <button
-                onClick={() => handleBarcodeScanned('123456789')}
-                className="mt-2 bg-gray-200 text-gray-800 px-3 py-2 rounded hover:bg-gray-300"
+              <Plus size={20} />
+            </IconButton>
+          </AddItemForm>
+
+          <ItemsList>
+            {items.map(item => (
+              <Item
+                key={item.id}
+                isChecked={item.isChecked}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
               >
-                Simulate Scan
-              </button>
-            </div>
-          )}
+                <Checkbox onClick={() => toggleItem(item.id)}>
+                  {item.isChecked && <Check size={14} />}
+                </Checkbox>
+                
+                {editingId === item.id ? (
+                  <Input
+                    type="text"
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && saveEdit()}
+                    autoFocus
+                  />
+                ) : (
+                  <ItemText>{item.name}</ItemText>
+                )}
+
+                <ItemActions>
+                  {editingId === item.id ? (
+                    <>
+                      <IconButton
+                        onClick={saveEdit}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Check size={14} />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => setEditingId(null)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <X size={14} />
+                      </IconButton>
+                    </>
+                  ) : (
+                    <>
+                      <IconButton
+                        onClick={() => startEdit(item)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Edit2 size={14} />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => deleteItem(item.id)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <X size={14} />
+                      </IconButton>
+                    </>
+                  )}
+                </ItemActions>
+              </Item>
+            ))}
+          </ItemsList>
         </>
       )}
-      <button
-        onClick={generateGroceryList}
-        className="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 w-full"
-      >
-        Regenerate Comprehensive List
-      </button>
-    </div>
+    </Container>
   );
 };
 
